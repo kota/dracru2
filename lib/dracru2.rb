@@ -2,6 +2,10 @@
 require 'rubygems'
 require 'mechanize'
 require 'logger'
+require 'json'
+require 'sqlite3'
+require 'active_record'
+require 'lib/game_map'
 require 'conf'
 
 DOMAIN = "http://s01.dragon2.bg-time.jp/"
@@ -26,7 +30,32 @@ class Dracru2
     @agent.user_agent_alias = 'Windows IE 7'
     @agent.cookie_jar.load(COOKIES) if File.exists?(COOKIES)
     login
+    prepare_map_db
   end
+
+  def prepare_map_db
+    unless File.exists?(DB)
+      SQLite3::Database.new(DB)
+    end
+    ActiveRecord::Base.establish_connection(
+      :adapter => 'sqlite3',
+      :database => DB
+    )
+    unless GameMap.table_exists?
+      ActiveRecord::Base.connection.create_table(:game_maps) do |t|
+        t.column :mapid, :string
+        t.column :map_type, :integer
+        t.column :akuma, :bool, :default => false
+        t.column :x, :integer
+        t.column :y, :integer
+        t.column :visited_at, :timestamp, :default => '1980-1-1'
+        t.column :akuma_checked_at, :timestamp, :default => '1980-1-1'
+      end
+      GameMap.generate_maps(@agent)
+      @logger.info('Create Map DB.')
+    end
+  end
+
 
   def login
     unless URL[:index] == @agent.get(URL[:index]).uri.to_s
@@ -46,6 +75,20 @@ class Dracru2
     end
     @agent.cookie_jar.save_as(COOKIES)
     @agent
+  end
+
+  def raid
+    select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2&mapId=53124819')
+    confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
+      if hero_checkbutton = f.checkbox_with(:value => '1874')
+        hero_checkbutton.check
+      else
+        raise "Hero:#{hero_id} not available."
+      end
+      f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == 2 }
+    end.submit
+    result = confirm.form_with(:action => '/outarms.ql').submit
+    puts result.body
   end
 
 end
