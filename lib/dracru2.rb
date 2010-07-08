@@ -77,6 +77,17 @@ class Dracru2
     @agent
   end
 
+  def raid_if_possible
+    HERO_IDS.each do |hero_id|
+      #TODO 条件判定いろいろ
+      if map = GameMap.get_available_map
+        raid(hero_id,map.x,map.y) 
+      else
+        @logger.info 'No maps available.'
+      end
+    end
+  end
+
   def raid(hero_id,x,y)
     select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2')
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|

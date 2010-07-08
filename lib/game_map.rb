@@ -1,5 +1,15 @@
 class GameMap < ActiveRecord::Base
   AJAX_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
+  
+  def self.get_available_map
+    if map = GameMap.find(:first,:conditions => ['visited_at is null or visited_at != ?',Time.now.beginning_of_day],:order => 'random()')
+      map.visited_at = Time.now.beginning_of_day
+      map.save!
+      return map
+    else 
+      return nil
+    end
+  end
 
   def self.generate_maps(agent)
     get_centers_of_neighbour(CATSLE_X,CATSLE_Y,RAID_DISTANCE).each do |coord|
