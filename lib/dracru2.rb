@@ -44,7 +44,7 @@ class Dracru2
     unless GameMap.table_exists?
       ActiveRecord::Base.connection.create_table(:game_maps) do |t|
         t.column :mapid, :string
-        t.column :map_type, :integer
+        t.column :map_type, :string
         t.column :akuma, :bool, :default => false
         t.column :x, :integer
         t.column :y, :integer
@@ -77,18 +77,21 @@ class Dracru2
     @agent
   end
 
-  def raid
-    select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2&mapId=53124819')
+  def raid(hero_id,x,y)
+    select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2')
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
-      if hero_checkbutton = f.checkbox_with(:value => '1874')
+      if hero_checkbutton = f.checkbox_with(:value => hero_id)
         hero_checkbutton.check
       else
         raise "Hero:#{hero_id} not available."
       end
       f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == 2 }
+      f.x = x
+      f.y = y
     end.submit
     result = confirm.form_with(:action => '/outarms.ql').submit
-    puts result.body
+    #TODO 成功したか判定
+    @logger.info "Raid #{x},#{y} with hero : #{hero_id}."
   end
 
 end
