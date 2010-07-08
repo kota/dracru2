@@ -1,0 +1,10 @@
+conf.rb
+*.swp
+*.log
+*.db
+lib/cookies
+lib/*.swp
+lib/*.log
+lib/*.db
+the-target/log/*.log
+the-target/tmp/**/*

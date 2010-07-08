@@ -1,0 +1,2 @@
+USERID = youruserid
+PASSWD = yourpassword
