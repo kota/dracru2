@@ -81,7 +81,9 @@ class Dracru2
     HERO_IDS.each do |hero_id|
       #TODO 条件判定いろいろ
       if map = GameMap.get_available_map
-        raid(hero_id,map.x,map.y) 
+        if raid(hero_id,map.x,map.y) 
+          map.visit!
+        end
       else
         @logger.info 'No maps available.'
       end
@@ -91,9 +93,15 @@ class Dracru2
   def raid(hero_id,x,y)
     select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2')
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
+      unless f
+        @logger.info "Hero:#{hero_id} in raid."
+        return false
+      end
       if hero_checkbutton = f.checkbox_with(:value => hero_id)
         hero_checkbutton.check
       else
+        @logger.info "Hero:#{hero_id} in raid."
+        return false
         raise "Hero:#{hero_id} not available."
       end
       f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == 2 }
@@ -103,6 +111,7 @@ class Dracru2
     result = confirm.form_with(:action => '/outarms.ql').submit
     #TODO 成功したか判定
     @logger.info "Raid #{x},#{y} with hero : #{hero_id}."
+    return true
   end
 
 end
