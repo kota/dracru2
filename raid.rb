@@ -1,3 +1,4 @@
+$: << File.dirname(__FILE__)
 require 'dracru2'
 
 if File.exists?(File.join(TMP_PATH, 'stop.txt'))
