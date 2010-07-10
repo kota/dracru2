@@ -117,6 +117,7 @@ class Dracru2
   end
 
   def arena
+    delay
     hero_ids.each do |hero_id|
       page = @agent.get(:url => URL[:arena] + hero_id, :headers => {'content-type' => 'text/html; charset=UTF-8'})
       doc = page.parser
