@@ -1,33 +1,12 @@
 # -*- coding: utf-8 -*-
-require 'rubygems'
-require 'mechanize'
-require 'logger'
-require 'json'
-require 'sqlite3'
-require 'active_record'
-require 'lib/game_map'
-require 'conf'
-
-SERVER rescue SERVER = 's01'
-DOMAIN = "http://#{SERVER}.dragon2.bg-time.jp/"
-URL = {
-  :index => "#{DOMAIN}city/index.ql",
-  :hero => "#{DOMAIN}hero/index.ql?heroId=",
-}
-
 class Dracru2
-  FILE_PATH = File.expand_path(File.dirname(__FILE__)) 
-  COOKIES = FILE_PATH + '/cookies'
-  DB = FILE_PATH + '/dracru.db'
+  include Core
 
   attr_accessor :agent
 
   def initialize
-    @logger = Logger.new(FILE_PATH + "/dracru.log")
-    @logger.info "---" + Time.now.strftime("%m/%d %H:%M")
-    
     @agent = Mechanize.new
-    @agent.log = Logger.new(FILE_PATH + "/mech.log")
+    @agent.log = Logger.new(TMP_PATH + "/mech.log")
     @agent.log.level = Logger::INFO
     @agent.user_agent_alias = 'Windows IE 7'
     @agent.cookie_jar.load(COOKIES) if File.exists?(COOKIES)
@@ -56,7 +35,7 @@ class Dracru2
         t.timestamps
       end
       GameMap.generate_maps(@agent, @main_city)
-      @logger.info('Create Map DB.')
+      $logger.info('Create Map DB.')
     end
   end
 
@@ -64,6 +43,7 @@ class Dracru2
   def login
     unless URL[:index] == @agent.get(URL[:index]).uri.to_s
       login_page = @agent.get "http://dragon2.bg-time.jp/member/gamestart.php?server=#{SERVER}"
+      delay
       server_login = login_page.form_with(:action => '/dragon2/login/') do |f|
         f.loginid = USERID
         f.password = PASSWD
@@ -72,10 +52,10 @@ class Dracru2
       unless Regexp.compile(URL[:index]) =~ @agent.page.uri.to_s
         raise 'Login Failed'
       else
-        @logger.info 'Logged in with New Session.'
+        $logger.info 'Logged in with New Session.'
       end
     else
-      @logger.info 'Logged in Using Cookies.'
+      $logger.info 'Logged in Using Cookies.'
     end
     @agent.cookie_jar.save_as(COOKIES)
     @agent
@@ -86,42 +66,44 @@ class Dracru2
       levelup(hero_id)
       #TODO 条件判定いろいろ
       if map = GameMap.get_available_map
-        if raid(hero_id,map.x,map.y) 
+        if raid(hero_id, map) 
           map.visit!
         end
       else
-        @logger.info 'No maps available.'
+        $logger.info 'No maps available.'
       end
     end
   end
 
-  def raid(hero_id,x,y)
+  def raid(hero_id, map)
     select_hero = @agent.get("http://#{SERVER}.dragon2.bg-time.jp/outarms.ql?from=map&m=2")
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
       unless f
-        @logger.info "Hero:#{hero_id} in raid."
+        $logger.info "Hero:#{hero_id} in raid."
         return false
       end
       if hero_checkbutton = f.checkbox_with(:value => hero_id)
         hero_checkbutton.check
       else
-        @logger.info "Hero:#{hero_id} in raid."
+        $logger.info "Hero:#{hero_id} in raid."
         return false
         raise "Hero:#{hero_id} not available."
       end
       f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == 2 }
-      f.x = x
-      f.y = y
+      f.x = map.x
+      f.y = map.y
     end.submit
     result = confirm.form_with(:action => '/outarms.ql').submit
     #TODO 成功したか判定
-    @logger.info "Raid #{x},#{y} with hero : #{hero_id}."
+    $logger.info "Raid (#{map.x}|#{map.y}) #{map.map_type} with hero : #{hero_id}."
     return true
   end
 
   def levelup(hero_id)
     while link = @agent.get(URL[:hero] + hero_id).link_with(:href => /hero\/upgrade.ql\?heroId=\d+/)
+      delay
       link.click
+      $logger.info "Hero level up : #{hero_id}."
     end
   end
 
