@@ -15,6 +15,7 @@ class GameMap < ActiveRecord::Base
       get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
         get_maps(agent, coord[:x], coord[:y]).each do |k,v|
           if ['丘陵','森林','湿地','山地'].include?(v['name'])
+            # typeが17だと悪魔城
             map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']}
             GameMap.create(map_data)
             $logger.info "map created #{map_data}"
@@ -60,9 +61,9 @@ class GameMap < ActiveRecord::Base
     (distance*2+1).times do |i| 
       diff = i*9
       centers.push({:x => center_x-dist_in_grids+diff, :y => center_y-dist_in_grids})
-      centers.push({:x => center_x-dist_in_grids, :y => center_y-dist_in_grids+diff})
+      centers.push({:x => center_x-dist_in_grids,      :y => center_y-dist_in_grids+diff})
       centers.push({:x => center_x+dist_in_grids-diff, :y => center_y+dist_in_grids})
-      centers.push({:x => center_x+dist_in_grids, :y => center_y+dist_in_grids-diff})
+      centers.push({:x => center_x+dist_in_grids,      :y => center_y+dist_in_grids-diff})
     end
     centers.uniq
   end
@@ -71,7 +72,7 @@ class GameMap < ActiveRecord::Base
     ids = []
     (-4..4).each do |x|
       (-4..4).each do |y|
-        ids.push(get_map_id(center_x+x,center_y+y))
+        ids.push(get_map_id(center_x+x, center_y+y))
       end
     end
     ids
