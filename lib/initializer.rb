@@ -33,7 +33,8 @@ rescue LoadError
   puts str
   exit
 end
-#SERVER rescue SERVER = 's01'
+
+SERVER rescue SERVER = 's01'
 DOMAIN = "http://#{SERVER}.dragon2.bg-time.jp/"
 
 # ディレイ設定
