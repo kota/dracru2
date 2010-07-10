@@ -46,4 +46,5 @@ URL = {}
   :index   => "city/index.ql",
   :hero    => "hero/index.ql?heroId=",
   :ajaxmap => "ajaxmap.ql",
+  :arena   => "building24.ql?heroId=",
 }.each{ |key, value| URL[key] = DOMAIN + value }
