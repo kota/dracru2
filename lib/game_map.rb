@@ -4,27 +4,32 @@ class GameMap < ActiveRecord::Base
 
   AJAX_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
   
-  def self.get_available_map
-    GameMap.find(:first,:conditions => ['visited_at is null or visited_at != ?',Time.now.beginning_of_day],:order => 'random()')
-  end
-
-  def self.generate_maps(agent, city)
-    get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
-      get_maps(agent, coord[:x], coord[:y]).each do |k,v|
-        if ['丘陵','森林','湿地','山地'].include?(v['name'])
-          map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']}
-          GameMap.create(map_data)
-          $logger.info "map created #{map_data}"
+  class << self
+    include Core
+    
+    def get_available_map
+      GameMap.find(:first,:conditions => ['visited_at is null or visited_at != ?',Time.now.beginning_of_day],:order => 'random()')
+    end
+    
+    def generate_maps(agent, city)
+      get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
+        get_maps(agent, coord[:x], coord[:y]).each do |k,v|
+          if ['丘陵','森林','湿地','山地'].include?(v['name'])
+            map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']}
+            GameMap.create(map_data)
+            $logger.info "map created #{map_data}"
+          end
         end
       end
     end
-  end
-
-  def self.get_maps(agent,center_x,center_y)
-    ids = get_map_ids(center_x,center_y)
-    json = "json={'mapIds':'#{ids.join(',')}'}"
-    map = agent.post(URL[:ajaxmap], json, 'Content-Type' => AJAX_CONTENT_TYPE)
-    JSON.parse(map.body)
+    
+    def get_maps(agent, center_x, center_y)
+      ids = get_map_ids(center_x, center_y)
+      json = "json={'mapIds':'#{ids.join(',')}'}"
+      map = agent.post(URL[:ajaxmap], json, 'Content-Type' => AJAX_CONTENT_TYPE)
+      delay
+      JSON.parse(map.body)
+    end
   end
 
   def visit!
