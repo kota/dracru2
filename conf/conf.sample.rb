@@ -4,9 +4,6 @@
 USERID = ''
 PASSWD = yourpassword
 
-CATSLE_X = 312
-CATSLE_Y = -182
-
 #悪魔城優先 = true, ランダム = false
 AKUMA = true
 
