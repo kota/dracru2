@@ -7,14 +7,36 @@ class GameMap < ActiveRecord::Base
   class << self
     include Core
     
-    def get_available_map
-      GameMap.find(:first,:conditions => ['visited_at is null or visited_at != ?',Time.now.beginning_of_day],:order => 'random()')
+    def get_available_map(agent)
+      now = Time.now
+      if AKUMA
+        # 60分以内にチェックした悪魔城は対象外
+        conditions = ['akuma_checked_at < ? and visited_at != ?', 60.minutes.ago, now.beginning_of_day]
+        order = "akuma desc, random()" 
+      else 
+        conditions = ['visited_at != ?', now.beginning_of_day]
+        order = "random()"
+      end
+      # 30回マップ探索してダメならあきらめる
+      for i in 1..30
+        map = GameMap.find(:first, :conditions => conditions,:order => order)
+        html = agent.get(URL[:mapinfo] + map.mapid).body
+        doc = Nokogiri::HTML.parse(html, nil, 'UTF-8')
+        delay
+        text = doc.xpath("//div[@class='map_info']/h3").text
+        if text.split('(')[0] == '悪魔城廃墟'
+          map.no_akuma
+        else
+          return map
+        end
+      end
+      return nil
     end
     
     def generate_maps(agent, city)
       get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
         get_maps(agent, coord[:x], coord[:y]).each do |k,v|
-          if ['丘陵','森林','湿地','山地'].include?(v['name'])
+          if ['丘陵','森林','湿地','山地','悪魔城'].include?(v['name'])
             # typeが17だと悪魔城
             map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']}
             GameMap.create(map_data)
@@ -37,7 +59,13 @@ class GameMap < ActiveRecord::Base
     self.visited_at = Time.now.beginning_of_day
     self.save!
   end
-
+  
+  def no_akuma!
+    self.akuma_checked_at = Time.now
+    self.save!
+    $logger.info "Map (#{self.x}|#{self.y}), 悪魔城廃墟 tt"
+  end
+  
   private
 
   #distance = 画面単位ではかった距離
