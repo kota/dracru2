@@ -5,8 +5,8 @@ class GameMap < ActiveRecord::Base
     GameMap.find(:first,:conditions => ['visited_at is null or visited_at != ?',Time.now.beginning_of_day],:order => 'random()')
   end
 
-  def self.generate_maps(agent)
-    get_centers_of_neighbour(CATSLE_X,CATSLE_Y,RAID_DISTANCE).each do |coord|
+  def self.generate_maps(agent, city)
+    get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
       get_maps(agent,coord[:x],coord[:y]).each do |k,v|
         if ['丘陵','森林','湿地','山地'].include?(v['name'])
           GameMap.create({:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']})

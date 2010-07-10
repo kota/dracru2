@@ -8,9 +8,11 @@ require 'active_record'
 require 'lib/game_map'
 require 'conf'
 
-DOMAIN = "http://s01.dragon2.bg-time.jp/"
+SERVER rescue SERVER = 's01'
+DOMAIN = "http://#{SERVER}.dragon2.bg-time.jp/"
 URL = {
-  :index => "#{DOMAIN}city/index.ql"
+  :index => "#{DOMAIN}city/index.ql",
+  :hero => "#{DOMAIN}hero/index.ql?heroId=",
 }
 
 class Dracru2
@@ -30,6 +32,7 @@ class Dracru2
     @agent.user_agent_alias = 'Windows IE 7'
     @agent.cookie_jar.load(COOKIES) if File.exists?(COOKIES)
     login
+    @main_city = cities[0] # 主城
     prepare_map_db
   end
 
@@ -50,8 +53,9 @@ class Dracru2
         t.column :y, :integer
         t.column :visited_at, :timestamp, :default => '1980-1-1'
         t.column :akuma_checked_at, :timestamp, :default => '1980-1-1'
+        t.timestamps
       end
-      GameMap.generate_maps(@agent)
+      GameMap.generate_maps(@agent, @main_city)
       @logger.info('Create Map DB.')
     end
   end
@@ -59,7 +63,7 @@ class Dracru2
 
   def login
     unless URL[:index] == @agent.get(URL[:index]).uri.to_s
-      login_page = @agent.get "http://dragon2.bg-time.jp/member/gamestart.php?server=s01"
+      login_page = @agent.get "http://dragon2.bg-time.jp/member/gamestart.php?server=#{SERVER}"
       server_login = login_page.form_with(:action => '/dragon2/login/') do |f|
         f.loginid = USERID
         f.password = PASSWD
@@ -79,6 +83,7 @@ class Dracru2
 
   def raid_if_possible
     HERO_IDS.each do |hero_id|
+      levelup(hero_id)
       #TODO 条件判定いろいろ
       if map = GameMap.get_available_map
         if raid(hero_id,map.x,map.y) 
@@ -91,7 +96,7 @@ class Dracru2
   end
 
   def raid(hero_id,x,y)
-    select_hero = @agent.get('http://s01.dragon2.bg-time.jp/outarms.ql?from=map&m=2')
+    select_hero = @agent.get("http://#{SERVER}.dragon2.bg-time.jp/outarms.ql?from=map&m=2")
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
       unless f
         @logger.info "Hero:#{hero_id} in raid."
@@ -114,4 +119,18 @@ class Dracru2
     return true
   end
 
+  def levelup(hero_id)
+    while link = @agent.get(URL[:hero] + hero_id).link_with(:href => /hero\/upgrade.ql\?heroId=\d+/)
+      link.click
+    end
+  end
+
+  # 都市の座標を返す
+  # [[111, -92], [111, -91]]
+  def cities
+    @cities ||= @agent.get(URL[:index]).parser.xpath("//a[@class='city']").inject([]) do |cities, element|
+      cities << /\(([-]*\d+)\s*\|\s*([-]*\d+)\)/.match(element['title']).to_a[1,2].map{|i| i.to_i}
+      cities
+    end
+  end
 end
