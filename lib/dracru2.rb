@@ -65,7 +65,7 @@ class Dracru2
     HERO_IDS.each do |hero_id|
       levelup(hero_id)
       #TODO 条件判定いろいろ
-      if map = GameMap.get_available_map
+      if map = GameMap.get_available_map(@agent)
         if raid(hero_id, map) 
           map.visit!
         end

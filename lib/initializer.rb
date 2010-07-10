@@ -9,9 +9,6 @@ require 'lib/core'
 require 'lib/dracru2'
 require 'lib/game_map'
 
-SERVER rescue SERVER = 's01'
-DOMAIN = "http://#{SERVER}.dragon2.bg-time.jp/"
-
 ROOT_PATH = File.expand_path(File.join(File.dirname(__FILE__), '..')) 
 TMP_PATH = ROOT_PATH + '/tmp'
 if !File.exist?(TMP_PATH) 
@@ -36,6 +33,8 @@ rescue LoadError
   puts str
   exit
 end
+#SERVER rescue SERVER = 's01'
+DOMAIN = "http://#{SERVER}.dragon2.bg-time.jp/"
 
 # ディレイ設定
 SLEEP = [4.0, 4.5, 5.0, 5.5, 6.0]
@@ -46,4 +45,5 @@ URL = {}
   :index   => "city/index.ql",
   :hero    => "hero/index.ql?heroId=",
   :ajaxmap => "ajaxmap.ql",
+  :mapinfo  => "map/areabel.ql?mapId=",
 }.each{ |key, value| URL[key] = DOMAIN + value }
