@@ -63,8 +63,10 @@ class Dracru2
 
   def raid_if_possible
     hero_ids.each do |hero_id|
-      levelup(hero_id)
       #TODO 条件判定いろいろ
+      levelup(hero_id)
+      # 復活させたくないならコメントアウト
+      next if resurrect_if_dead(hero_id)
       if map = GameMap.get_available_map(@agent)
         if raid(hero_id, map) 
           map.visit!
@@ -100,11 +102,27 @@ class Dracru2
   end
 
   def levelup(hero_id)
-    while link = @agent.get(URL[:hero] + hero_id).link_with(:href => /hero\/upgrade.ql\?heroId=\d+/)
+    while link = hero_page(hero_id).link_with(:href => /hero\/upgrade.ql\?heroId=\d+/)
       delay
       link.click
       $logger.info "Hero level up : #{hero_id}."
+      return true
     end
+    return false
+  end
+
+  def resurrect_if_dead(hero_id)
+    if link = hero_page(hero_id).link_with(:href => /building6\.ql\?cityId=\d+/)
+      delay
+      page = link.click
+      delay
+      form = page.form_with('reliveForm')
+      form['heroId'] = hero_id
+      p form.submit
+      $logger.info "Resurrecting Hero:#{hero_id}."
+      return true
+    end
+    return false
   end
 
   # 都市の座標を返す
@@ -121,17 +139,21 @@ class Dracru2
     hero_ids(:arena).each do |hero_id|
       begin
         page = @agent.get(:url => URL[:arena] + hero_id, :headers => {'content-type' => 'text/html; charset=UTF-8'})
+        
         doc = page.parser
-        # 昇級試験
         if doc.xpath("//input[@id='bmpk']")
           form = page.form_with(:action => /building24.ql/)
           form['action'] = 'bm'
           form.submit
-          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) runk up battle."
         end
         # player hero level
         doc.xpath("//li[@class='act']")[0].children[5].text =~ /Lv\s*:\s*(\d+)/
         hero_level = $~[1].to_i
+        # レベル8以下はアリーナしない　
+        if hero_level < 8
+          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) is not enough level to fight"
+          next
+        end
         if doc.xpath("//li[@class='act']")[0].children[5].text =~ /対戦中/
           $logger.info "Arena Hero:#{hero_id}(#{hero_level}) is now fighting..."
           next
@@ -172,7 +194,11 @@ class Dracru2
     return true
   end
 
-  def hero_ids(type = :hunting)                                                           
-    Array === HERO_IDS ? HERO_IDS : HERO_IDS[type]                                        
+  def hero_ids(type = :hunting)
+    Array === HERO_IDS ? HERO_IDS : HERO_IDS[type]
+  end
+
+  def hero_page(hero_id)
+    (@hero_pages ||= {})[hero_id] ||= @agent.get(URL[:hero] + hero_id)
   end
 end
