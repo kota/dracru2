@@ -118,48 +118,61 @@ class Dracru2
 
   def arena
     delay
-    hero_ids.each do |hero_id|
-      page = @agent.get(:url => URL[:arena] + hero_id, :headers => {'content-type' => 'text/html; charset=UTF-8'})
-      doc = page.parser
-      # player hero level
-      doc.xpath("//li[@class='act']")[0].children[5].text =~ /Lv\s*:\s*(\d+)/
-      hero_level = $~[1].to_i
-      if doc.xpath("//li[@class='act']")[0].children[5].text =~ /対戦中/
-        $logger.info "Arena Hero:#{hero_id}(#{hero_level}) is now fighting..."
-        next
-      end
-      index = nil
-      enemy_level = 0
-      doc.xpath("//table[@id='ct1']//tr/td[4]").map{|td| td.text.to_i}.each_with_index do |level, i|
-        # 3レベル下なら勝てる??
-        if level <= hero_level - 3
-          index = i
-          enemy_level = level
-          break
+    hero_ids(:arena).each do |hero_id|
+      begin
+        page = @agent.get(:url => URL[:arena] + hero_id, :headers => {'content-type' => 'text/html; charset=UTF-8'})
+        doc = page.parser
+        # 昇級試験
+        if doc.xpath("//input[@id='bmpk']")
+          form = page.form_with(:action => /building24.ql/)
+          form['action'] = 'bm'
+          form.submit
+          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) runk up battle."
         end
-      end
-      unless index
-        $logger.info "Arena Hero:#{hero_id}(#{hero_level}) enemies was too strong..."
-        next
-      end
+        # player hero level
+        doc.xpath("//li[@class='act']")[0].children[5].text =~ /Lv\s*:\s*(\d+)/
+        hero_level = $~[1].to_i
+        if doc.xpath("//li[@class='act']")[0].children[5].text =~ /対戦中/
+          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) is now fighting..."
+          next
+        end
+        index = nil
+        enemy_level = 0
+        doc.xpath("//table[@id='ct1']//tr/td[4]").map{|td| td.text.to_i}.each_with_index do |level, i|
+          # 3レベル下なら勝てる??
+          if level <= hero_level - 3
+            index = i
+            enemy_level = level
+            break
+          end
+        end
+        unless index
+          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) enemies was too strong..."
+          next
+        end
 
-      links = page.links_with(:href => /#none/).select do |link|
-        /pk\((\d+)\);/.match(link.attributes['onclick'])
+        links = page.links_with(:href => /#none/).select do |link|
+          /pk\((\d+)\);/.match(link.attributes['onclick'])
+        end
+        if links.empty?
+          $logger.info "Arena Hero:#{hero_id}(#{hero_level}) max battles..."
+          next
+        end
+        enemy_id = /pk\((\d+)\);/.match(links[index].attributes['onclick'])[1].to_i
+        form = page.form_with(:action => /building24.ql/)
+        form['action'] = 'pk'
+        form['pkId'] = enemy_id
+        form.submit
+        $logger.info "Arena Hero:#{hero_id}(#{hero_level}) vs Enemy:#{enemy_id}(#{enemy_level})"
+      rescue => e
+        $logger.info "Arena Hero:#{hero_id}(#{hero_level}) error: #{e.message}"
+        $logger.info e.backtrace.join("\n")
       end
-      if links.empty?
-        $logger.info "Arena Hero:#{hero_id}(#{hero_level}) max battles..."
-        next
-      end
-      enemy_id = /pk\((\d+)\);/.match(links[index].attributes['onclick'])[1].to_i
-      form = page.form_with(:action => /building24.ql/)
-      form['action'] = 'pk'
-      form['pkId'] = enemy_id
-      form.submit
-      $logger.info "Arena Hero:#{hero_id}(#{hero_level}) vs Enemy:#{enemy_id}(#{enemy_level})"
     end
+    return true
   end
 
-  def hero_ids
-    HERO_IDS
+  def hero_ids(type = :hunting)                                                           
+    Array === HERO_IDS ? HERO_IDS : HERO_IDS[type]                                        
   end
 end
