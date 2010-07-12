@@ -8,6 +8,7 @@ require 'json'
 require 'lib/core'
 require 'lib/dracru2'
 require 'lib/game_map'
+require 'lib/build_queue'
 
 ROOT_PATH = File.expand_path(File.join(File.dirname(__FILE__), '..')) 
 TMP_PATH = ROOT_PATH + '/tmp'

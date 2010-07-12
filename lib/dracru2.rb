@@ -37,6 +37,12 @@ class Dracru2
       GameMap.generate_maps(@agent, @main_city)
       $logger.info('Create Map DB.')
     end
+    unless BuildQueue.table_exists?
+      ActiveRecord::Base.connection.create_table(:build_queues) do |t|
+        t.column :buildingid, :integer
+        t.timestamps
+      end
+    end
   end
 
 
@@ -193,6 +199,69 @@ class Dracru2
     end
     return true
   end
+
+  def build_or_upgrade_if_queued
+    if queued = BuildQueue.find(:first, :order => 'id asc')
+      #TODO まだ建ってなかったらbuild
+      if upgrade_building(queued.buildingid)
+        queued.delete
+      end
+    else
+      $logger.info "No build queue."
+    end
+  end
+
+  def build(building_id,space_id=nil)
+    system_building_id = "#{RACE}#{building_id}"
+    if space_id ||= find_vacant_space_id
+      page = @agent.get(:url => "#{building_url(nil)}?pid=#{space_id}", :headers => {'content-type' => 'text/html; charset=UTF-8'})
+      doc = page.parser
+      if input = doc.xpath("//input[@onclick='document.form1.systemBuildingId.value=#{system_building_id};document.form1.submit();return false;']")[0]
+        page.form_with(:name => 'form1') do |f|
+          f.systemBuildingId = system_building_id
+        end.submit
+        $logger.info "Build Building:#{building_id} Built successfully."
+        return true
+      else 
+        $logger.info "Build Building:#{building_id} Faild to build. At least one of the requirements is not satisfied."
+      end
+    else 
+      $logger.info "Build Building:#{building_id} No vacant space."
+    end
+    return false
+  end
+
+  def upgrade_building(building_id)
+    page = @agent.get(:url => building_url(building_id), :headers => {'content-type' => 'text/html; charset=UTF-8'})
+    doc = page.parser
+    if doc.xpath("//input[@value='建設']").size > 0
+      if form = page.form_with(:name => 'updateBuildForm')
+        form.submit
+        $logger.info "Build Building:#{building_id} Upgraded successfully ."
+        return true
+      end
+    else
+      $logger.info "Build Building:#{building_id} Too many constructions or Not enough resources."
+    end
+    return false
+  end
+
+  def find_vacant_space_id
+    delay
+    page = @agent.get(:url => URL[:index], :headers => {'content-type' => 'text/html; charset=UTF-8'})
+    doc = page.parser
+    vacants = doc.xpath("//area[@msg='空地']")
+    unless vacants.empty?
+      return vacants[0]['href'].split('=')[1]
+    else
+      return nil
+    end
+  end
+
+  def building_url(building_id)
+    "#{DOMAIN}building#{building_id}.ql"
+  end
+
 
   def hero_ids(type = :hunting)
     Array === HERO_IDS ? HERO_IDS : HERO_IDS[type]
