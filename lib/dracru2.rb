@@ -45,7 +45,6 @@ class Dracru2
     end
   end
 
-
   def login
     unless URL[:index] == @agent.get(URL[:index]).uri.to_s
       login_page = @agent.get "http://dragon2.bg-time.jp/member/gamestart.php?server=#{SERVER}"
@@ -67,23 +66,26 @@ class Dracru2
     @agent
   end
 
-  def raid_if_possible
-    hero_ids.each do |hero_id|
-      #TODO 条件判定いろいろ
-      levelup(hero_id)
-      # 復活させたくないならコメントアウト
-      next if resurrect_if_dead(hero_id)
-      if map = GameMap.get_available_map(@agent)
-        if raid(hero_id, map) 
-          map.visit!
+  def send_army_if_possible
+    [:hunting,:gathering,:searching].each do |action|
+      hero_ids(action).each do |hero_id|
+         #TODO 条件判定いろいろ
+        levelup(hero_id)
+        # 復活させたくないならコメントアウト
+        next if resurrect_if_dead(hero_id)
+        #hunt以外の時は悪魔城を取得しない
+        if map = GameMap.get_available_map(@agent,action==:hunting)
+          if send_army(hero_id, map, action) 
+            map.visit!
+          end
+        else
+          $logger.info 'No maps available.'
         end
-      else
-        $logger.info 'No maps available.'
       end
     end
   end
 
-  def raid(hero_id, map)
+  def send_army(hero_id,map,action=:hunting)
     select_hero = @agent.get("http://#{SERVER}.dragon2.bg-time.jp/outarms.ql?from=map&m=2")
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
       unless f
@@ -97,13 +99,13 @@ class Dracru2
         return false
         raise "Hero:#{hero_id} not available."
       end
-      f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == 2 }
+      f.radiobuttons_with(:name => 'm').each{|radio| radio.check if radio.value == ACTIONS[action] }
       f.x = map.x
       f.y = map.y
     end.submit
     result = confirm.form_with(:action => '/outarms.ql').submit
     #TODO 成功したか判定
-    $logger.info "Raid (#{map.x}|#{map.y}) #{map.map_type} with hero : #{hero_id}."
+    $logger.info "#{action.to_s} #{ACTIONS[action]} (#{map.x}|#{map.y}) #{map.map_type} with hero : #{hero_id}."
     return true
   end
 
@@ -270,4 +272,5 @@ class Dracru2
   def hero_page(hero_id)
     (@hero_pages ||= {})[hero_id] ||= @agent.get(URL[:hero] + hero_id)
   end
+
 end

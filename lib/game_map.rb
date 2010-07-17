@@ -7,7 +7,7 @@ class GameMap < ActiveRecord::Base
   class << self
     include Core
     
-    def get_available_map(agent)
+    def get_available_map(agent,include_akuma=true)
       now = Time.now
       if AKUMA
         # 60分以内にチェックした悪魔城は対象外
@@ -16,6 +16,10 @@ class GameMap < ActiveRecord::Base
       else 
         conditions = ['visited_at != ?', now.beginning_of_day]
         order = "random()"
+      end
+      unless include_akuma
+        conditions[0] += ' and akuma = ?'
+        conditions << false;
       end
       # 30回マップ探索してダメならあきらめる
       for i in 1..30

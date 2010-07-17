@@ -6,4 +6,4 @@ if File.exists?(File.join(TMP_PATH, 'stop.txt'))
   exit
 end
 dracru2 = Dracru2.new
-dracru2.raid_if_possible
+dracru2.send_army_if_possible

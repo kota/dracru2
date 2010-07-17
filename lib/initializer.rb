@@ -50,3 +50,6 @@ URL = {}
   :mapinfo  => "map/areabel.ql?mapId=",
   :arena   => "building24.ql?heroId=",
 }.each{ |key, value| URL[key] = DOMAIN + value }
+
+# 出兵タイプ
+ACTIONS = {:hunting => '2', :gathering => '4', :searching => '7'}
