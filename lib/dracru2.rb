@@ -67,6 +67,7 @@ class Dracru2
   end
 
   def send_army_if_possible
+    # set_soldiers
     [:hunting,:gathering,:searching].each do |action|
       hero_ids(action).each do |hero_id|
          #TODO 条件判定いろいろ
@@ -317,12 +318,17 @@ class Dracru2
             soldiers[arms_id] += arms_num
           end
         end
-        if soldiers[soldier_type] > 6 
+        if soldiers[soldier_type] > 0
           num = [(soldiers[soldier_type] / 7), soldier_num].min
+          rest = soldiers[soldier_type] % 7
           7.times do |i|
             pos = i + 1
             f["armsId_#{hero_id}_#{pos}"] = soldier_type
             f["armyNum_#{hero_id}_#{pos}"] = num
+            if rest > 0
+              f["armyNum_#{hero_id}_#{pos}"] += 1
+              rest -= 1
+            end
           end
           f.submit
           $logger.info("Set soldier hero_id:#{hero_id} type:#{soldier_type} num:#{num}")
