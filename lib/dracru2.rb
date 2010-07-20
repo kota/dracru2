@@ -282,46 +282,51 @@ class Dracru2
     (@hero_pages ||= {})[hero_id] ||= @agent.get(URL[:hero] + hero_id)
   end
 
+  def set_soldiers
+    hero_ids(:soldier).each do |hs|
+      set_soldier(hs[:id], hs[:type], hs[:num])
+    end
+  end
+
   # Exterminal Future
   # 兵士配置
-  # 実験中
-  def set_soldier
-    hero_ids(:soldier).each do |hs|
-      hero_id = hs[:id]
-      soldier_type = hs[:type]
-      soldier_num = hs[:num]
-      if link = soldier_page = hero_page(hero_id).link_with(:href => /callarms\.ql\?cityId=\d+/)
-        page = link.click
-        delay
-        doc = page.parser
-        soldiers = Hash.new(0)
-        doc.xpath("//ul[@id='all_soldier']/li").each do |li|
-          arms_id = /images\/arms\/(\d+)\.gif/.match(li.children[0].attribute('src').value)[1]
-          arms_num = li.children[1].inner_html
-          soldiers[arms_id] = arms_num.to_i
-        end
+  # hero_id 英雄ID
+  # soldier_type 兵士ID("#{種族ID}0#{種族内兵士ID}")
+  #   ドワーフのバーサーカー: 506
+  # soldier_num 最大平均配置数
+  #   7 x 10 まで配置したい: 10
+  def set_soldier(hero_id, soldier_type, soldier_num)
+    if link = soldier_page = hero_page(hero_id).link_with(:href => /callarms\.ql\?cityId=\d+/)
+      page = link.click
+      delay
+      doc = page.parser
+      soldiers = Hash.new(0)
+      doc.xpath("//ul[@id='all_soldier']/li").each do |li|
+        arms_id = /images\/arms\/(\d+)\.gif/.match(li.children[0].attribute('src').value)[1]
+        arms_num = li.children[1].inner_html
+        soldiers[arms_id] = arms_num.to_i
+      end
 
-        page.form_with(:name => 'armsForm') do |f|
-          # 正規表現でとる方法がわからないので数で。
+      page.form_with(:name => 'armsForm') do |f|
+        # 正規表現でとる方法がわからないので数で。
+        7.times do |i|
+          pos = i + 1
+          arms_id = f["armsId_#{hero_id}_#{pos}"]
+          arms_num = f["armyNum_#{hero_id}_#{pos}"].to_i
+          if arms_num > 0
+            soldiers[arms_id] += arms_num
+          end
+        end
+        if soldiers[soldier_type] > 6 
+          num = [(soldiers[soldier_type] / 7), soldier_num].min
           7.times do |i|
             pos = i + 1
-            arms_id = f["armsId_#{hero_id}_#{pos}"]
-            arms_num = f["armyNum_#{hero_id}_#{pos}"].to_i
-            if arms_num > 0
-              soldiers[arms_id] += arms_num
-            end
+            f["armsId_#{hero_id}_#{pos}"] = soldier_type
+            f["armyNum_#{hero_id}_#{pos}"] = num
           end
-          if soldiers[soldier_type] > 6 
-            num = [(soldiers[soldier_type] / 7), soldier_num].min
-            7.times do |i|
-              pos = i + 1
-              f["armsId_#{hero_id}_#{pos}"] = soldier_type
-              f["armyNum_#{hero_id}_#{pos}"] = num
-            end
-            f.submit
-            $logger.info("Set soldier hero_id:#{hero_id} type:#{soldier_type} num:#{num}")
-            delay
-          end
+          f.submit
+          $logger.info("Set soldier hero_id:#{hero_id} type:#{soldier_type} num:#{num}")
+          delay
         end
       end
     end
