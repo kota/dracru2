@@ -32,9 +32,13 @@ class Dracru2
         t.column :y, :integer
         t.column :visited_at, :timestamp, :default => '1980-1-1'
         t.column :akuma_checked_at, :timestamp, :default => '1980-1-1'
+        t.column :distance, :integer
+        t.column :city_id, :integer
         t.timestamps
       end
-      GameMap.generate_maps(@agent, @main_city)
+      cities.each do |city|
+        GameMap.generate_maps(@agent, city)
+      end
       $logger.info('Create Map DB.')
     end
     unless BuildQueue.table_exists?
@@ -71,11 +75,31 @@ class Dracru2
     [:hunting,:gathering,:searching].each do |action|
       hero_ids(action).each do |hero_id|
          #TODO 条件判定いろいろ
-        levelup(hero_id)
+        levelup(hero_id) # レベルアップ
         # 復活させたくないならコメントアウト
         next if resurrect_if_dead(hero_id)
+        # 兵士配置
+        hero = hero_ids(:soldier).detect{|h| h[:id] == hero_id}
+        set_soldier(hero[:id], hero[:type], hero[:num]) if hero
+
+        elements = hero_page(hero_id).parser.xpath("//div[@class='tl']/ul/li/a")
+        city_id = nil
+        elements.each do |e|
+          if e['href'] =~ %r!/city/index.ql\?cityId=\d+!
+            city_id = /cityId=(\d+)/.match(e['href'])[1]
+            break
+          end
+        end
+
         #hunt以外の時は悪魔城を取得しない
-        if map = GameMap.get_available_map(@agent,action==:hunting)
+        options = {
+          :action => action,
+          :distance => RAID_DISTANCE,
+          :city_id => city_id,
+        }
+        options[:hero_id] = hero_id
+        p options
+        if map = GameMap.get_available_map(@agent,options)
           if send_army(hero_id, map, action) 
             map.visit!
           end
@@ -87,7 +111,15 @@ class Dracru2
   end
 
   def send_army(hero_id,map,action=:hunting)
-    select_hero = @agent.get("http://#{SERVER}.dragon2.bg-time.jp/outarms.ql?from=map&m=2")
+    # 英雄画面の軍事指揮所
+    command_link = hero_page(hero_id).link_with(:href => /building12.ql\?cityId=/)
+    unless command_link
+      $logger.info "Hero:#{hero_id} is dead or in raid."
+      return
+    end
+    command_page = command_link.click
+    select_hero = @agent.get('/outarms.ql?from=building')
+    #select_hero = @agent.get("http://#{SERVER}.dragon2.bg-time.jp/outarms.ql?from=map&m=2")
     confirm = select_hero.form_with(:action => '/outarms.ql') do |f|
       unless f
         $logger.info "Hero:#{hero_id} in raid."
@@ -127,7 +159,7 @@ class Dracru2
       delay
       form = page.form_with('reliveForm')
       form['heroId'] = hero_id
-      p form.submit
+      form.submit
       $logger.info "Resurrecting Hero:#{hero_id}."
       return true
     end
@@ -137,9 +169,11 @@ class Dracru2
   # 都市の座標を返す
   # [[111, -92], [111, -91]]
   def cities
+    c = Struct.new("City", :id, :x, :y)
     @cities ||= @agent.get(URL[:index]).parser.xpath("//a[@class='city']").inject([]) do |cities, element|
-      cities << /\(([-]*\d+)\s*\|\s*([-]*\d+)\)/.match(element['title']).to_a[1,2].map{|i| i.to_i}
-      cities
+      city = c.new(element['cityid'].to_i)
+      city.x, city.y = /\(([-]*\d+)\s*\|\s*([-]*\d+)\)/.match(element['title']).to_a[1,2].map{|i| i.to_i}
+      cities << city
     end
   end
 
@@ -289,7 +323,6 @@ class Dracru2
     end
   end
 
-  # Exterminal Future
   # 兵士配置
   # hero_id 英雄ID
   # soldier_type 兵士ID("#{種族ID}0#{種族内兵士ID}")
@@ -297,7 +330,7 @@ class Dracru2
   # soldier_num 最大平均配置数
   #   7 x 10 まで配置したい: 10
   def set_soldier(hero_id, soldier_type, soldier_num)
-    if link = soldier_page = hero_page(hero_id).link_with(:href => /callarms\.ql\?cityId=\d+/)
+    if link = hero_page(hero_id).link_with(:href => /callarms\.ql\?cityId=\d+/)
       page = link.click
       delay
       doc = page.parser
@@ -319,7 +352,8 @@ class Dracru2
           end
         end
         if soldiers[soldier_type] > 0
-          num = [(soldiers[soldier_type] / 7), soldier_num].min
+          num = soldiers[soldier_type] / 7
+          num = [num, soldier_num].min if soldier_num
           rest = soldiers[soldier_type] % 7
           7.times do |i|
             pos = i + 1

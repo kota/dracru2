@@ -7,7 +7,11 @@ class GameMap < ActiveRecord::Base
   class << self
     include Core
     
-    def get_available_map(agent,include_akuma=true)
+    def get_available_map(agent, options = {})
+      action = options[:action] || :hunting
+      city_id = options[:city_id]
+      distance = options[:distance] || RAID_DISTANCE
+      include_akuma = action == :hunting
       now = Time.now
       if AKUMA
         # 60分以内にチェックした悪魔城は対象外
@@ -21,9 +25,13 @@ class GameMap < ActiveRecord::Base
         conditions[0] += ' and akuma = ?'
         conditions << false;
       end
+      conditions[0] += ' and city_id = ? and distance = ?'
+      conditions << city_id
+      conditions << distance
       # 30回マップ探索してダメならあきらめる
       for i in 1..30
         map = GameMap.find(:first, :conditions => conditions,:order => order)
+        return unless map
         html = agent.get(URL[:mapinfo] + map.mapid).body
         doc = Nokogiri::HTML.parse(html, nil, 'UTF-8')
         delay
@@ -38,13 +46,15 @@ class GameMap < ActiveRecord::Base
     end
     
     def generate_maps(agent, city)
-      get_centers_of_neighbour(city[0], city[1], RAID_DISTANCE).each do |coord|
-        get_maps(agent, coord[:x], coord[:y]).each do |k,v|
-          if ['丘陵','森林','湿地','山地','悪魔城'].include?(v['name'])
-            # typeが17だと悪魔城
-            map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name']}
-            GameMap.create(map_data)
-            $logger.info "map created #{map_data}"
+      5.times do |i|
+        get_centers_of_neighbour(city.x, city.y, i).each do |coord|
+          get_maps(agent, coord[:x], coord[:y]).each do |k,v|
+            if ['丘陵','森林','湿地','山地','悪魔城'].include?(v['name'])
+              # typeが17だと悪魔城
+              map_data = {:x => v['x'], :y => v['y'], :mapid => k, :akuma => v['type'] == 17, :map_type => v['name'], :distance => i, :city_id => city.id}
+              GameMap.create(map_data)
+              $logger.info "map created #{map_data}"
+            end
           end
         end
       end

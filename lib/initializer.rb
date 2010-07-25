@@ -48,7 +48,7 @@ URL = {}
   :hero    => "hero/index.ql?heroId=",
   :ajaxmap => "ajaxmap.ql",
   :mapinfo  => "map/areabel.ql?mapId=",
-  :arena   => "building24.ql?heroId=",
+  :arena   => "building24.ql?heroId="
 }.each{ |key, value| URL[key] = DOMAIN + value }
 
 # 出兵タイプ
